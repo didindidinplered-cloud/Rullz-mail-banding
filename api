@@ -1,0 +1,54 @@
+import nodemailer from 'nodemailer';
+
+const VALID_API_KEYS = ['backing123'];
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method tidak diizinkan' });
+  }
+
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || !VALID_API_KEYS.includes(apiKey)) {
+    return res.status(401).json({ success: false, message: 'API Key tidak valid' });
+  }
+
+  try {
+    const { to, subject, text, html, sender_user, sender_pass } = req.body;
+
+    if (!to || !subject || (!text && !html) || !sender_user || !sender_pass) {
+      return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: sender_user, pass: sender_pass }
+    });
+
+    const mailOptions = {
+      from: sender_user,
+      to: Array.isArray(to) ? to.join(',') : to,
+      subject: subject,
+      text: text,
+      html: html
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email berhasil dikirim',
+      messageId: info.messageId
+    });
+
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
